@@ -11,6 +11,31 @@
 
   <name>openusd-javacpp</name>
   <description>JavaCPP bindings for the OpenUSD core (Sdf, Usd, UsdGeom): authoring and composition, no imaging.</description>
+  <url>https://github.com/scivicslab/openusd-javacpp</url>
+
+  <licenses>
+    <license>
+      <name>Apache License, Version 2.0</name>
+      <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
+      <distribution>repo</distribution>
+    </license>
+  </licenses>
+
+  <developers>
+    <developer>
+      <id>scivicslab</id>
+      <name>Scivics Lab</name>
+      <email>devteam@scivicslab.com</email>
+      <organization>Scivics Lab</organization>
+      <organizationUrl>https://scivics-lab.com</organizationUrl>
+    </developer>
+  </developers>
+
+  <scm>
+    <connection>scm:git:git://github.com/scivicslab/openusd-javacpp.git</connection>
+    <developerConnection>scm:git:ssh://github.com:scivicslab/openusd-javacpp.git</developerConnection>
+    <url>https://github.com/scivicslab/openusd-javacpp</url>
+  </scm>
 
   <properties>
     <maven.compiler.release>21</maven.compiler.release>

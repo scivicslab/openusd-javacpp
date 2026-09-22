@@ -143,3 +143,10 @@ stays readable by a program — and by a language model — after it has been dr
 - The plugin registrations are not bundled in the native jar, so `PXR_PLUGINPATH_NAME` has to be
   set by the caller.
 - `linux-x86_64` only.
+
+## License
+
+Apache License 2.0. See [LICENSE](LICENSE).
+
+OpenUSD itself is licensed separately by Pixar; this project links against it but does not
+redistribute it.
