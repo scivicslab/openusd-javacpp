@@ -112,6 +112,11 @@ def route(src, dst, offset=0.0):
     """
     sx, sy, sw, sh = src["x"], src["y"], src["w"], src["h"]
     tx, ty, tw, th = dst["x"], dst["y"], dst["w"], dst["h"]
+    if abs(tx - sx) < 0.8:
+        # Same column: one straight vertical run between the facing edges.
+        if ty < sy:
+            return [(sx, sy - sh / 2), (tx, ty + th / 2)]
+        return [(sx, sy + sh / 2), (tx, ty - th / 2)]
     if abs(ty - sy) < 0.8:
         if tx > sx:
             return [(sx + sw / 2, sy), (tx - tw / 2, ty)]
@@ -238,7 +243,11 @@ def main(usda, png):
         arrow(name, pts, ink)
         if prim.HasAttribute("label"):
             label = prim.GetAttribute("label").Get()
-            if len(pts) == 4:
+            if len(pts) == 2 and abs(pts[0][0] - pts[1][0]) < 1e-6:
+                # vertical run: label beside it, left-aligned
+                text(name + "_label", label, pts[0][0] + 0.3, (pts[0][1] + pts[1][1]) / 2, 0.02,
+                     EDGE_LABEL_SIZE, align="LEFT")
+            elif len(pts) == 4:
                 # elbow: label beside the vertical run, left-aligned
                 (xm, ya), (_, yb) = pts[1], pts[2]
                 text(name + "_label", label, xm + 0.3, (ya + yb) / 2, 0.02, EDGE_LABEL_SIZE, align="LEFT")
