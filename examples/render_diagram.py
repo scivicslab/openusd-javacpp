@@ -18,6 +18,9 @@ from pxr import Usd, UsdGeom
 # the same shape, and every label here is an identifier. Noto Sans Mono CJK JP carries CJK too.
 FONT = str(Path.home() / ".local/share/fonts/NotoSansMonoCJKjp-Regular.otf")
 COLORS = {
+    "pane":     (0.97, 0.97, 0.98, 1),
+    "control":  (0.91, 0.93, 0.96, 1),
+    "content":  (1.00, 1.00, 1.00, 1),
     "actor":    (0.86, 0.91, 0.98, 1),
     "pojo":     (0.99, 0.90, 0.90, 1),
     "external": (0.90, 0.95, 0.88, 1),
@@ -141,6 +144,23 @@ def main(usda, png):
     stage = Usd.Stage.Open(usda)
     xc = UsdGeom.XformCache()
 
+    # Text size is a property of the figure, not of the renderer: a screen layout spans a wider
+    # canvas than a structure diagram, so it needs bigger type to stay readable at the same
+    # printed width. /diagram may carry labelSize / subSize / edgeLabelSize; these are the defaults.
+    global LABEL_SIZE, POJO_SIZE, EDGE_LABEL_SIZE, LABEL_LINE, POJO_LINE
+    LABEL_SIZE, POJO_SIZE, EDGE_LABEL_SIZE = 1.3, 0.95, 1.1
+    root = stage.GetPrimAtPath("/diagram")
+    for name, default in (("labelSize", LABEL_SIZE), ("subSize", POJO_SIZE), ("edgeLabelSize", EDGE_LABEL_SIZE)):
+        if root and root.HasAttribute(name) and root.GetAttribute(name).Get() is not None:
+            value = root.GetAttribute(name).Get()
+            if name == "labelSize":
+                LABEL_SIZE = value
+            elif name == "subSize":
+                POJO_SIZE = value
+            else:
+                EDGE_LABEL_SIZE = value
+    LABEL_LINE, POJO_LINE = LABEL_SIZE * 0.73, POJO_SIZE * 0.76
+
     nodes = {}
     for prim in stage.Traverse():
         path = prim.GetPath().pathString
@@ -150,26 +170,41 @@ def main(usda, png):
         pojo = prim.GetAttribute("pojo").Get() if prim.HasAttribute("pojo") else None
         label = prim.GetAttribute("label").Get()
         n1, n2 = label.count("\n") + 1, (pojo.count("\n") + 1) if pojo else 0
+        # A node with an authored `height` is a rectangle of a given size -- a pane in a screen
+        # layout. Without one it is a box grown to fit its text -- a node in a structure diagram.
+        height = prim.GetAttribute("height").Get() if prim.HasAttribute("height") else None
         nodes[path] = dict(
             x=t[0], y=t[1],
             label=label,
             pojo=pojo,
             kind=prim.GetAttribute("kind").Get() or "actor",
             w=prim.GetAttribute("width").Get() or 4.0,
-            h=2 * PAD + LABEL_LINE * n1 + POJO_LINE * n2,
+            h=height if height else 2 * PAD + LABEL_LINE * n1 + POJO_LINE * n2,
             n1=n1, n2=n2,
+            rect=height is not None,
         )
 
     border = material("border", BORDER)
-    for path, n in nodes.items():
+    # Bigger first, so a nested pane is drawn on top of the one that contains it.
+    for path, n in sorted(nodes.items(), key=lambda kv: -kv[1]["w"] * kv[1]["h"]):
         base = path.rsplit("/", 1)[1]
-        plane(base + "_border", n["x"], n["y"], n["w"] + 0.12, n["h"] + 0.12, -0.01, border)
-        plane(base + "_box", n["x"], n["y"], n["w"], n["h"], 0.0, material("kind_" + n["kind"], COLORS[n["kind"]]))
+        z = 0.0 if not n["rect"] else min(0.3, 0.3 - n["w"] * n["h"] / 4000.0)
+        plane(base + "_border", n["x"], n["y"], n["w"] + 0.12, n["h"] + 0.12, z - 0.01, border)
+        plane(base + "_box", n["x"], n["y"], n["w"], n["h"], z, material("kind_" + n["kind"], COLORS[n["kind"]]))
         top = n["y"] + n["h"] / 2 - PAD
-        text(base + "_label", n["label"], n["x"], top - LABEL_LINE * n["n1"] / 2, 0.02, LABEL_SIZE)
-        if n["pojo"]:
-            text(base + "_pojo", n["pojo"], n["x"],
-                 top - LABEL_LINE * n["n1"] - POJO_LINE * n["n2"] / 2, 0.02, POJO_SIZE)
+        if n["rect"]:
+            # A pane is named in its top-left corner, the way a screen reads.
+            left = n["x"] - n["w"] / 2 + PAD
+            text(base + "_label", n["label"], left, top - LABEL_LINE * n["n1"] / 2, z + 0.02,
+                 LABEL_SIZE, align="LEFT")
+            if n["pojo"]:
+                text(base + "_pojo", n["pojo"], left,
+                     top - LABEL_LINE * n["n1"] - POJO_LINE * n["n2"] / 2, z + 0.02, POJO_SIZE, align="LEFT")
+        else:
+            text(base + "_label", n["label"], n["x"], top - LABEL_LINE * n["n1"] / 2, 0.02, LABEL_SIZE)
+            if n["pojo"]:
+                text(base + "_pojo", n["pojo"], n["x"],
+                     top - LABEL_LINE * n["n1"] - POJO_LINE * n["n2"] / 2, 0.02, POJO_SIZE)
 
     # Containment: a thin grey run from a parent box's right edge to each child's left edge.
     tree = material("tree", TREE)
@@ -177,6 +212,9 @@ def main(usda, png):
         parent = path.rsplit("/", 1)[0]
         if parent in nodes:
             p = nodes[parent]
+            # Nested rectangles already show containment; a line would only cross them.
+            if n["rect"] and p["rect"]:
+                continue
             x0, x1 = p["x"] + p["w"] / 2, n["x"] - n["w"] / 2
             xm = x0 + 0.35
             base = path.rsplit("/", 1)[1]
