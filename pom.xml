@@ -1,0 +1,171 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>com.scivicslab</groupId>
+  <artifactId>openusd-javacpp</artifactId>
+  <version>0.1.0-SNAPSHOT</version>
+  <packaging>jar</packaging>
+
+  <name>openusd-javacpp</name>
+  <description>JavaCPP bindings for the OpenUSD core (Sdf, Usd, UsdGeom): authoring and composition, no imaging.</description>
+
+  <properties>
+    <maven.compiler.release>21</maven.compiler.release>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <javacpp.version>1.5.11</javacpp.version>
+    <javacpp.platform>linux-x86_64</javacpp.platform>
+    <!-- Where build_usd.py installed OpenUSD (headers in include/, libusd_ms.so in lib/). -->
+    <usd.home>${env.HOME}/.local/openusd-26.08</usd.home>
+    <javacpp.parser.skip>false</javacpp.parser.skip>
+    <javacpp.compiler.skip>false</javacpp.compiler.skip>
+    <junit.version>5.11.4</junit.version>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.bytedeco</groupId>
+      <artifactId>javacpp</artifactId>
+      <version>${javacpp.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <version>${junit.version}</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <finalName>${project.artifactId}-${project.version}</finalName>
+    <plugins>
+      <!-- 1. Compile the preset (InfoMapper) first: the parser needs it as a class. -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.14.0</version>
+        <configuration>
+          <compilerArgs>
+            <arg>-Xmaxerrs</arg>
+            <arg>2000</arg>
+          </compilerArgs>
+        </configuration>
+        <executions>
+          <execution>
+            <id>javacpp-parser</id>
+            <phase>generate-sources</phase>
+            <goals><goal>compile</goal></goals>
+            <configuration>
+              <includes>
+                <include>com/scivicslab/usd/presets/*.java</include>
+              </includes>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+
+      <!-- 2. Parse the USD headers into Java sources, then (after compile) build the JNI library. -->
+      <plugin>
+        <groupId>org.bytedeco</groupId>
+        <artifactId>javacpp</artifactId>
+        <version>${javacpp.version}</version>
+        <configuration>
+          <properties>${javacpp.platform}</properties>
+          <classPath>${project.build.outputDirectory}</classPath>
+          <includePaths>
+            <includePath>${usd.home}/include</includePath>
+            <includePath>${project.basedir}/src/main/native</includePath>
+          </includePaths>
+          <linkPaths>
+            <linkPath>${usd.home}/lib</linkPath>
+          </linkPaths>
+          <compilerOptions>
+            <compilerOption>-std=c++17</compilerOption>
+          </compilerOptions>
+        </configuration>
+        <executions>
+          <execution>
+            <id>javacpp-parser</id>
+            <phase>generate-sources</phase>
+            <goals><goal>build</goal></goals>
+            <configuration>
+              <skip>${javacpp.parser.skip}</skip>
+              <outputDirectory>${project.build.directory}/generated-sources/javacpp</outputDirectory>
+              <classOrPackageName>com.scivicslab.usd.presets.*</classOrPackageName>
+            </configuration>
+          </execution>
+          <execution>
+            <id>javacpp-compiler</id>
+            <phase>process-classes</phase>
+            <goals><goal>build</goal></goals>
+            <configuration>
+              <skip>${javacpp.compiler.skip}</skip>
+              <classOrPackageName>com.scivicslab.usd.**</classOrPackageName>
+              <copyLibs>true</copyLibs>
+              <copyResources>true</copyResources>
+              <configDirectory>${project.build.directory}/native</configDirectory>
+              <outputDirectory>${project.build.directory}/native/com/scivicslab/usd/${javacpp.platform}</outputDirectory>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+
+      <!-- 3. Add the generated sources to the main compilation. -->
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>build-helper-maven-plugin</artifactId>
+        <version>3.6.0</version>
+        <executions>
+          <execution>
+            <id>add-generated-sources</id>
+            <phase>generate-sources</phase>
+            <goals><goal>add-source</goal></goals>
+            <configuration>
+              <sources>
+                <source>${project.build.directory}/generated-sources/javacpp</source>
+              </sources>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+
+      <!-- 4. Two jars: classes (no classifier) and the native library (linux-x86_64). -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-jar-plugin</artifactId>
+        <version>3.4.2</version>
+        <executions>
+          <execution>
+            <id>native-jar</id>
+            <phase>package</phase>
+            <goals><goal>jar</goal></goals>
+            <configuration>
+              <classifier>${javacpp.platform}</classifier>
+              <classesDirectory>${project.build.directory}/native</classesDirectory>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>3.5.2</version>
+        <configuration>
+          <!-- Tests load the JNI library from the native output directory. -->
+          <additionalClasspathElements>
+            <additionalClasspathElement>${project.build.directory}/native</additionalClasspathElement>
+          </additionalClasspathElements>
+          <!-- OpenUSD finds its plugins (ArDefaultResolver, usda file format, ...) through
+               plugInfo.json files next to the library; until they ship inside the jar,
+               point the plugin registry at the installed tree. -->
+          <environmentVariables>
+            <PXR_PLUGINPATH_NAME>${usd.home}/lib/usd</PXR_PLUGINPATH_NAME>
+          </environmentVariables>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+</project>

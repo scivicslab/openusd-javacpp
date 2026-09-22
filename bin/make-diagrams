@@ -1,0 +1,72 @@
+#!/bin/bash
+# Rebuilds every USD diagram under the given roots (default: ~/works/doc_*).
+#
+#   make-diagrams [-a] [root ...]
+#     -a   rebuild everything, ignoring timestamps
+#
+# A figure is a <name>.jsh file. It writes <name>.usda next to itself, and the renderer draws
+# <name>.png from that. Only what is out of date is rebuilt:
+#   .usda   when it is missing or older than the .jsh
+#   .png    when it is missing or older than the .usda or the renderer
+#
+# All the .jsh that need running go through ONE jshell session, and all the figures that need
+# drawing through ONE Blender start-up, because those two start-ups are what the time goes into.
+set -euo pipefail
+
+HERE=$(cd "$(dirname "$0")/.." && pwd)
+RENDERER=$HERE/examples/render_diagram.py
+M=$HOME/.m2/repository
+V=0.1.0-SNAPSHOT
+CP=$M/com/scivicslab/openusd-javacpp/$V/openusd-javacpp-$V.jar
+CP=$CP:$M/com/scivicslab/openusd-javacpp/$V/openusd-javacpp-$V-linux-x86_64.jar
+CP=$CP:$M/org/bytedeco/javacpp/1.5.11/javacpp-1.5.11.jar
+
+FORCE=0
+if [ "${1:-}" = "-a" ]; then FORCE=1; shift; fi
+ROOTS=("$@")
+if [ ${#ROOTS[@]} -eq 0 ]; then ROOTS=("$HOME"/works/doc_*); fi
+
+# static-html / build / .docusaurus are html-saurus output: the .jsh there is a copy of a source
+# file, and regenerating it would fight with the generator.
+mapfile -t JSH < <(find "${ROOTS[@]}" \
+        -type d \( -name .git -o -name node_modules -o -name build -o -name static-html \
+                   -o -name .docusaurus -o -name target \) -prune -o \
+        -type f -name '*.jsh' -print | sort)
+if [ ${#JSH[@]} -eq 0 ]; then echo "no .jsh found under ${ROOTS[*]}"; exit 0; fi
+
+SCRIPT=$(mktemp /tmp/make-diagrams-XXXXXX.jsh)
+PAIRS=()
+TO_WRITE=0
+trap 'rm -f "$SCRIPT"' EXIT
+
+for jsh in "${JSH[@]}"; do
+    usda=${jsh%.jsh}.usda
+    png=${jsh%.jsh}.png
+    if [ "$FORCE" = 1 ] || [ ! -f "$usda" ] || [ "$jsh" -nt "$usda" ]; then
+        # jshell runs every figure in one session: set the output path, then paste the script
+        # without its /exit (that would end the session).
+        printf 'System.setProperty("out", "%s");\n' "$usda" >> "$SCRIPT"
+        grep -v '^/exit' "$jsh" >> "$SCRIPT"
+        printf '\n' >> "$SCRIPT"
+        TO_WRITE=$((TO_WRITE + 1))
+    fi
+    if [ "$FORCE" = 1 ] || [ ! -f "$png" ] || [ "$usda" -nt "$png" ] || [ "$RENDERER" -nt "$png" ] \
+       || [ "$jsh" -nt "$png" ]; then
+        PAIRS+=("$usda" "$png")
+    fi
+done
+
+if [ "$TO_WRITE" -gt 0 ]; then
+    echo "/exit" >> "$SCRIPT"
+    echo "== jshell: $TO_WRITE figure(s) -> .usda"
+    PXR_PLUGINPATH_NAME=$HOME/.local/openusd-26.08/lib/usd \
+        jshell -R--enable-native-access=ALL-UNNAMED --class-path "$CP" "$SCRIPT" 2>&1 | sed '/^WARNING/d'
+fi
+
+if [ ${#PAIRS[@]} -gt 0 ]; then
+    echo "== blender: $(( ${#PAIRS[@]} / 2 )) figure(s) -> .png"
+    "$HOME/.local/blender/blender-4.5.9-linux-x64/blender" -b --python "$RENDERER" -- "${PAIRS[@]}" 2>&1 \
+        | sed -n '/^rendered\|Traceback\|Error/p'
+fi
+
+if [ "$TO_WRITE" = 0 ] && [ ${#PAIRS[@]} -eq 0 ]; then echo "up to date (${#JSH[@]} figure(s))"; fi
