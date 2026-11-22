@@ -124,7 +124,8 @@ def route(src, dst, offset=0.0):
     if tx > sx:
         x0, x1 = sx + sw / 2, tx - tw / 2
         # vertical run just outside the source box, so it never crosses a wide target box
-        xm = min(x0 + 0.9 + offset, x1 - 0.3)
+        # the last run must be longer than the arrow head (0.6), or the head overhangs the vertical run
+        xm = max(min(x0 + 0.9 + offset, x1 - 0.8), x0 + 0.2)
         return [(x0, sy), (xm, sy), (xm, ty), (x1, ty)]
     yend = ty - th / 2 if sy < ty else ty + th / 2
     return [(sx - sw / 2, sy), (tx, sy), (tx, yend)]
@@ -178,13 +179,16 @@ def main(usda, png):
         # A node with an authored `height` is a rectangle of a given size -- a pane in a screen
         # layout. Without one it is a box grown to fit its text -- a node in a structure diagram.
         height = prim.GetAttribute("height").Get() if prim.HasAttribute("height") else None
+        # `boxHeight` stretches a box that is still grown from its text (text stays centered), so boxes
+        # stacked in one column can share one height.
+        box_height = prim.GetAttribute("boxHeight").Get() if prim.HasAttribute("boxHeight") else None
         nodes[path] = dict(
             x=t[0], y=t[1],
             label=label,
             pojo=pojo,
             kind=prim.GetAttribute("kind").Get() or "actor",
             w=prim.GetAttribute("width").Get() or 4.0,
-            h=height if height else 2 * PAD + LABEL_LINE * n1 + POJO_LINE * n2,
+            h=height if height else (box_height or 2 * PAD + LABEL_LINE * n1 + POJO_LINE * n2),
             n1=n1, n2=n2,
             rect=height is not None,
         )
@@ -196,7 +200,8 @@ def main(usda, png):
         z = 0.0 if not n["rect"] else min(0.3, 0.3 - n["w"] * n["h"] / 4000.0)
         plane(base + "_border", n["x"], n["y"], n["w"] + 0.12, n["h"] + 0.12, z - 0.01, border)
         plane(base + "_box", n["x"], n["y"], n["w"], n["h"], z, material("kind_" + n["kind"], COLORS[n["kind"]]))
-        top = n["y"] + n["h"] / 2 - PAD
+        # Without `height` the text block is centered in the box (equal to the old top padding when the box fits its text).
+        top = n["y"] + n["h"] / 2 - PAD if n["rect"] else n["y"] + (LABEL_LINE * n["n1"] + POJO_LINE * n["n2"]) / 2
         if n["rect"]:
             # A pane is named in its top-left corner, the way a screen reads.
             left = n["x"] - n["w"] / 2 + PAD

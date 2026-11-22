@@ -4,8 +4,9 @@
 #   make-diagrams [-a] [root ...]
 #     -a   rebuild everything, ignoring timestamps
 #
-# A figure is a <name>.jsh file. It writes <name>.usda next to itself, and the renderer draws
-# <name>.png from that. Only what is out of date is rebuilt:
+# A figure is a diagram-<name>.jsh file. It writes diagram-<name>.usda next to itself, and the renderer
+# draws diagram-<name>.png from that. A .jsh whose name does not start with diagram- is not a figure and is
+# ignored. Only what is out of date is rebuilt:
 #   .usda   when it is missing or older than the .jsh
 #   .png    when it is missing or older than the .usda or the renderer
 #
@@ -31,7 +32,7 @@ if [ ${#ROOTS[@]} -eq 0 ]; then ROOTS=("$HOME"/works/doc_*); fi
 mapfile -t JSH < <(find "${ROOTS[@]}" \
         -type d \( -name .git -o -name node_modules -o -name build -o -name static-html \
                    -o -name .docusaurus -o -name target \) -prune -o \
-        -type f -name '*.jsh' -print | sort)
+        -type f -name 'diagram-*.jsh' -print | sort)
 if [ ${#JSH[@]} -eq 0 ]; then echo "no .jsh found under ${ROOTS[*]}"; exit 0; fi
 
 SCRIPT=$(mktemp /tmp/make-diagrams-XXXXXX.jsh)
