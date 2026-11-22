@@ -50,6 +50,8 @@ import org.bytedeco.javacpp.tools.InfoMapper;
             "pxr/usd/usdGeom/xform.h",
             // Typed read-out of composed values (src/main/native); Get<T> is not instantiated.
             "usd_read.h",
+            // Array-valued authoring (src/main/native); Set<VtArray<T>> is not instantiated.
+            "usd_write.h",
             // Must stay last: brings namespace pxr into scope for the generated JNI code.
             "openusd_javacpp.h",
         },

@@ -98,3 +98,28 @@ inline pxr::GfVec3d ReadWorldTranslation(const pxr::UsdPrim& prim) {
     if (!xf) return pxr::GfVec3d(0, 0, 0);
     return xf.ComputeLocalToWorldTransform(pxr::UsdTimeCode::Default()).ExtractTranslation();
 }
+
+/** True when the prim has a composed primvars:displayColor with at least one entry. */
+inline bool ReadHasDisplayColor(const pxr::UsdPrim& prim) {
+    if (!prim) return false;
+    pxr::UsdAttribute attr = prim.GetAttribute(pxr::TfToken("primvars:displayColor"));
+    pxr::VtValue v;
+    if (!attr || !attr.Get(&v) || !v.IsHolding<pxr::VtArray<pxr::GfVec3f>>()) return false;
+    return !v.UncheckedGet<pxr::VtArray<pxr::GfVec3f>>().empty();
+}
+
+/** The first entry of the prim's composed primvars:displayColor; (-1, -1, -1) when there is none. */
+inline pxr::GfVec3d ReadDisplayColor(const pxr::UsdPrim& prim) {
+    if (!ReadHasDisplayColor(prim)) return pxr::GfVec3d(-1, -1, -1);
+    pxr::VtValue v;
+    prim.GetAttribute(pxr::TfToken("primvars:displayColor")).Get(&v);
+    return pxr::GfVec3d(v.UncheckedGet<pxr::VtArray<pxr::GfVec3f>>()[0]);
+}
+
+/** The names of the properties that have an opinion in some layer, in USD's order. */
+inline std::vector<std::string> ReadAuthoredPropertyNames(const pxr::UsdPrim& prim) {
+    std::vector<std::string> out;
+    if (!prim) return out;
+    for (const auto& t : prim.GetAuthoredPropertyNames()) out.push_back(t.GetString());
+    return out;
+}
