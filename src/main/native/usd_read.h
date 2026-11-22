@@ -16,7 +16,9 @@
 #include "pxr/base/gf/vec3d.h"
 #include "pxr/base/gf/vec3f.h"
 #include "pxr/base/vt/array.h"
+#include "pxr/usd/sdf/layer.h"
 #include "pxr/usd/sdf/path.h"
+#include "pxr/usd/sdf/primSpec.h"
 #include "pxr/usd/usd/attribute.h"
 #include "pxr/usd/usd/prim.h"
 #include "pxr/usd/usd/relationship.h"
@@ -121,5 +123,18 @@ inline std::vector<std::string> ReadAuthoredPropertyNames(const pxr::UsdPrim& pr
     std::vector<std::string> out;
     if (!prim) return out;
     for (const auto& t : prim.GetAuthoredPropertyNames()) out.push_back(t.GetString());
+    return out;
+}
+
+/**
+ * Where the opinions on a prim come from, strongest first: one "realPath\tpathInThatLayer" per
+ * prim spec. A prim brought in by a reference names the referenced layer and its own path there.
+ */
+inline std::vector<std::string> ReadPrimStack(const pxr::UsdPrim& prim) {
+    std::vector<std::string> out;
+    if (!prim) return out;
+    for (const auto& spec : prim.GetPrimStack()) {
+        out.push_back(spec->GetLayer()->GetRealPath() + "\t" + spec->GetPath().GetString());
+    }
     return out;
 }
