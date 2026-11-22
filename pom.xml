@@ -189,7 +189,31 @@
           <environmentVariables>
             <PXR_PLUGINPATH_NAME>${usd.home}/lib/usd</PXR_PLUGINPATH_NAME>
           </environmentVariables>
+          <excludes>
+            <exclude>**/PluginPathTest.java</exclude>
+          </excludes>
         </configuration>
+        <executions>
+          <!-- A program launched by something that does not set PXR_PLUGINPATH_NAME (AI-workspace
+               passes a fixed set of variables) registers the plugin directory itself. Test that
+               path alone, in a JVM where the variable is empty. -->
+          <execution>
+            <id>plugin-path</id>
+            <goals><goal>test</goal></goals>
+            <configuration>
+              <environmentVariables combine.self="override">
+                <PXR_PLUGINPATH_NAME></PXR_PLUGINPATH_NAME>
+              </environmentVariables>
+              <excludes combine.self="override"/>
+              <includes>
+                <include>**/PluginPathTest.java</include>
+              </includes>
+              <systemPropertyVariables>
+                <usd.plugins>${usd.home}/lib/usd</usd.plugins>
+              </systemPropertyVariables>
+            </configuration>
+          </execution>
+        </executions>
       </plugin>
     </plugins>
   </build>

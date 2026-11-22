@@ -52,6 +52,8 @@ import org.bytedeco.javacpp.tools.InfoMapper;
             "usd_read.h",
             // Array-valued authoring (src/main/native); Set<VtArray<T>> is not instantiated.
             "usd_write.h",
+            // Registering the plugInfo directory without PXR_PLUGINPATH_NAME (src/main/native).
+            "usd_setup.h",
             // Must stay last: brings namespace pxr into scope for the generated JNI code.
             "openusd_javacpp.h",
         },
