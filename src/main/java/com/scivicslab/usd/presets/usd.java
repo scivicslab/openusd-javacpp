@@ -48,6 +48,8 @@ import org.bytedeco.javacpp.tools.InfoMapper;
             "pxr/usd/usdGeom/xformOp.h",
             "pxr/usd/usdGeom/xformable.h",
             "pxr/usd/usdGeom/xform.h",
+            // Typed read-out of composed values (src/main/native); Get<T> is not instantiated.
+            "usd_read.h",
             // Must stay last: brings namespace pxr into scope for the generated JNI code.
             "openusd_javacpp.h",
         },
