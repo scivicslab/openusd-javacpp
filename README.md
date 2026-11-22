@@ -123,8 +123,10 @@ free the stage while prims obtained from it are still in use, and OpenUSD then r
 ## Figures from USD
 
 `bin/make-diagrams` uses the binding to turn figure definitions into pictures. It walks
-`~/works/doc_*` for `*.jsh`, runs the out-of-date ones through one jshell session to write `.usda`,
-and renders those through `examples/render_diagram.py` in one Blender run.
+`~/works/doc_*` for `diagram-*.jsh`, runs the out-of-date ones through one jshell session to write `.usda`,
+and draws those to PNG (and SVG) in one run of the Java renderer `diagram-render-cli` from
+usd-slide-editor, installed as `~/works/diagram-render-cli.jar`. When `diagram-<name>.human.usda`
+exists beside a figure -- a person's edits, written by usd-slide-editor -- the picture includes them.
 
 ```bash
 bin/make-diagrams          # everything under ~/works/doc_*

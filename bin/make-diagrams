@@ -8,14 +8,18 @@
 # draws diagram-<name>.png from that. A .jsh whose name does not start with diagram- is not a figure and is
 # ignored. Only what is out of date is rebuilt:
 #   .usda   when it is missing or older than the .jsh
-#   .png    when it is missing or older than the .usda or the renderer
+#   .png    when it is missing or older than the .usda, the human layer diagram-<name>.human.usda
+#           (a person's edits, written by usd-slide-editor) or the renderer
 #
 # All the .jsh that need running go through ONE jshell session, and all the figures that need
-# drawing through ONE Blender start-up, because those two start-ups are what the time goes into.
+# drawing through ONE start-up of the Java renderer, because those start-ups are what the time goes into.
+#
+# The renderer is diagram-render-cli (usd-slide-editor), installed as ~/works/diagram-render-cli.jar or
+# named by DIAGRAM_RENDERER. It draws the human layer when there is one, and writes an .svg beside the .png.
 set -euo pipefail
 
 HERE=$(cd "$(dirname "$0")/.." && pwd)
-RENDERER=$HERE/examples/render_diagram.py
+RENDERER=${DIAGRAM_RENDERER:-$HOME/works/diagram-render-cli.jar}
 M=$HOME/.m2/repository
 V=0.1.0-SNAPSHOT
 CP=$M/com/scivicslab/openusd-javacpp/$V/openusd-javacpp-$V.jar
@@ -51,7 +55,9 @@ for jsh in "${JSH[@]}"; do
         printf '\n' >> "$SCRIPT"
         TO_WRITE=$((TO_WRITE + 1))
     fi
+    human=${jsh%.jsh}.human.usda
     if [ "$FORCE" = 1 ] || [ ! -f "$png" ] || [ "$usda" -nt "$png" ] || [ "$RENDERER" -nt "$png" ] \
+       || { [ -f "$human" ] && [ "$human" -nt "$png" ]; } \
        || [ "$jsh" -nt "$png" ]; then
         PAIRS+=("$usda" "$png")
     fi
@@ -65,9 +71,10 @@ if [ "$TO_WRITE" -gt 0 ]; then
 fi
 
 if [ ${#PAIRS[@]} -gt 0 ]; then
-    echo "== blender: $(( ${#PAIRS[@]} / 2 )) figure(s) -> .png"
-    "$HOME/.local/blender/blender-4.5.9-linux-x64/blender" -b --python "$RENDERER" -- "${PAIRS[@]}" 2>&1 \
-        | sed -n '/^rendered\|Traceback\|Error/p'
+    echo "== java: $(( ${#PAIRS[@]} / 2 )) figure(s) -> .png"
+    PXR_PLUGINPATH_NAME=$HOME/.local/openusd-26.08/lib/usd \
+        java --enable-native-access=ALL-UNNAMED -jar "$RENDERER" "${PAIRS[@]}" 2>&1 \
+        | sed -n '/^rendered\|Exception\|Error/p'
 fi
 
 if [ "$TO_WRITE" = 0 ] && [ ${#PAIRS[@]} -eq 0 ]; then echo "up to date (${#JSH[@]} figure(s))"; fi
